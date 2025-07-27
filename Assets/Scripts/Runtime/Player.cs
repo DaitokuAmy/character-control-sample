@@ -191,7 +191,7 @@ namespace CharacterControlSample {
         /// 向きの更新
         /// </summary>
         private void UpdateRotation(float deltaTime) {
-            // 移動速度方向に徐々に回転させる
+            // 移動速度があれば、カメラ方向に徐々に向きを直していく
             if (_velocity.sqrMagnitude > 0.01f) {
                 var targetDir = lookTransform.forward;
                 targetDir.y = 0;
