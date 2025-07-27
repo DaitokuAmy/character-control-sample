@@ -126,6 +126,24 @@ namespace CharacterControlSample {
             UpdateFromAnimatorParameters(deltaTime);
         }
 
+        private void OnAnimatorMove() {
+            // ローカル移動量に変換
+            var deltaPosition = _animator.deltaPosition;
+            var localDeltaPosition = transform.InverseTransformDirection(deltaPosition);
+
+            // 軸スケールを考慮
+            localDeltaPosition = Vector3.Scale(localDeltaPosition, RootPositionScale);
+            deltaPosition = transform.TransformDirection(localDeltaPosition);
+
+            // 回転はワールドで考慮
+            var deltaEulerAngles = _animator.deltaRotation.eulerAngles;
+            deltaEulerAngles.y *= RootRotationYScale;
+
+            // 値の反映
+            Move(deltaPosition);
+            transform.eulerAngles += deltaEulerAngles;
+        }
+
         /// <summary>
         /// JumpAction発生時
         /// </summary>
@@ -235,27 +253,6 @@ namespace CharacterControlSample {
         private void SetPosition(Vector3 newPosition) {
             var deltaPosition = newPosition - transform.position;
             Move(deltaPosition);
-        }
-
-        /// <summary>
-        /// Animator経由での移動
-        /// </summary>
-        private void OnAnimatorMove() {
-            // ローカル移動量に変換
-            var deltaPosition = _animator.deltaPosition;
-            var localDeltaPosition = transform.InverseTransformDirection(deltaPosition);
-
-            // 軸スケールを考慮
-            localDeltaPosition = Vector3.Scale(localDeltaPosition, RootPositionScale);
-            deltaPosition = transform.TransformDirection(localDeltaPosition);
-
-            // 回転はワールドで考慮
-            var deltaEulerAngles = _animator.deltaRotation.eulerAngles;
-            deltaEulerAngles.y *= RootRotationYScale;
-
-            // 値の反映
-            Move(deltaPosition);
-            transform.eulerAngles += deltaEulerAngles;
         }
     }
 }
