@@ -85,7 +85,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   playerInput: {fileID: 0}
-  maxSpeed: 4
+  maxSpeed: 4.178082
   speedInterpRate: 5
   rotationInterpRate: 5
   lookTransform: {fileID: 0}
@@ -99,6 +99,11 @@ MonoBehaviour:
     normalizedBlendTime: 0.1
   - stateName: Attack_2
     normalizedBlendTime: 0.1
+  _useRootLocomotion: 1
+  _rootPositionScale: {x: 1, y: 1, z: 1}
+  rootRotationYYScale: 1
+  _gravityScale: 1
+  _disableAction: 0
 --- !u!143 &1292980762056278671
 CharacterController:
   m_ObjectHideFlags: 0

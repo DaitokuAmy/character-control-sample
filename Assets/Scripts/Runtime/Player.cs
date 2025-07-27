@@ -1,4 +1,5 @@
 using System;
+using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Serialization;
@@ -48,6 +49,9 @@ namespace CharacterControlSample {
 
         [SerializeField, Tooltip("攻撃アクション情報リスト")]
         private ActionInfo[] attackActionInfos;
+
+        [SerializeField, Tooltip("基本移動モーションでRoot更新を行うか")]
+        private bool _useRootLocomotion = true;
 
         [Header("可視化用")]
         [SerializeField, Tooltip("ルート移動量スケール")]
@@ -118,6 +122,13 @@ namespace CharacterControlSample {
 
             // 重力の更新
             UpdateGravity(deltaTime);
+            
+            // 自前移動
+            if (!_useRootLocomotion) {
+                if (!IsActionState()) {
+                    Move(_velocity * deltaTime);
+                }
+            }
 
             // アニメーターのパラメータに反映
             UpdateAnimatorParameters(deltaTime);
@@ -127,12 +138,18 @@ namespace CharacterControlSample {
         }
 
         private void OnAnimatorMove() {
+            // 自前移動する場合、Actionモーション以外は座標スケールを0にする
+            var positionScale = RootPositionScale;
+            if (!_useRootLocomotion && !IsActionState()) {
+                positionScale = Vector3.zero;
+            }
+            
             // ローカル移動量に変換
             var deltaPosition = _animator.deltaPosition;
             var localDeltaPosition = transform.InverseTransformDirection(deltaPosition);
 
             // 軸スケールを考慮
-            localDeltaPosition = Vector3.Scale(localDeltaPosition, RootPositionScale);
+            localDeltaPosition = Vector3.Scale(localDeltaPosition, positionScale);
             deltaPosition = transform.TransformDirection(localDeltaPosition);
 
             // 回転はワールドで考慮
@@ -151,7 +168,7 @@ namespace CharacterControlSample {
             if (_disableAction) {
                 return;
             }
-            
+
             var actionInfo = jumpActionInfo;
 
             // ステートに遷移
@@ -165,7 +182,7 @@ namespace CharacterControlSample {
             if (_disableAction) {
                 return;
             }
-            
+
             // 攻撃の抽選
             var index = Random.Range(0, attackActionInfos.Length);
             var actionInfo = attackActionInfos[index];
@@ -253,6 +270,14 @@ namespace CharacterControlSample {
         private void SetPosition(Vector3 newPosition) {
             var deltaPosition = newPosition - transform.position;
             Move(deltaPosition);
+        }
+
+        /// <summary>
+        /// アクションステートにいるか
+        /// </summary>
+        private bool IsActionState() {
+            return _animator.GetCurrentAnimatorStateInfo(0).IsTag("Action") ||
+                   _animator.GetNextAnimatorStateInfo(0).IsTag("Action");
         }
     }
 }
