@@ -1,5 +1,4 @@
 using System;
-using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Serialization;
@@ -14,6 +13,7 @@ namespace CharacterControlSample {
         private static readonly int SpeedPropId = Animator.StringToHash("speed");
         private static readonly int SpeedXPropId = Animator.StringToHash("speed.x");
         private static readonly int SpeedZPropId = Animator.StringToHash("speed.z");
+        private static readonly int SpeedScalePropId = Animator.StringToHash("speed_scale");
         private static readonly int InverseGravityScalePropId = Animator.StringToHash("inverse_gravity_scale");
         private static readonly int DisableActionPropId = Animator.StringToHash("disable_action");
 
@@ -35,6 +35,9 @@ namespace CharacterControlSample {
         [SerializeField, Tooltip("最大速度")]
         private float maxSpeed = 4.0f;
 
+        [SerializeField, Tooltip("Root移動による最大速度")]
+        private float maxRootSpeed = 4.0f;
+
         [SerializeField, Tooltip("移動速度補間割合")]
         private float speedInterpRate = 1.0f;
 
@@ -52,6 +55,9 @@ namespace CharacterControlSample {
 
         [SerializeField, Tooltip("基本移動モーションでRoot更新を行うか")]
         private bool _useRootLocomotion = true;
+
+        [SerializeField, Tooltip("速度スケールを用いて移動速度をルート移動モーションより増加させるか")]
+        private bool _useSpeedScale = true;
 
         [Header("可視化用")]
         [SerializeField, Tooltip("ルート移動量スケール")]
@@ -242,6 +248,10 @@ namespace CharacterControlSample {
             // 移動速度
             var speed = _velocity.magnitude;
             _animator.SetFloat(SpeedPropId, speed);
+            
+            // 速度スケール
+            var speedScale = _useSpeedScale ? Mathf.Max(1.0f, speed / maxRootSpeed) : 1.0f;
+            _animator.SetFloat(SpeedScalePropId, speedScale);
 
             // 正面から見た相対速度
             var relativeVelocity = Quaternion.Euler(0, -transform.eulerAngles.y, 0) * _velocity;
