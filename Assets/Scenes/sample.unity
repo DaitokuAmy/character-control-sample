@@ -524,6 +524,18 @@ PrefabInstance:
       propertyPath: lookTransform
       value: 
       objectReference: {fileID: 330585546}
+    - target: {fileID: 45589522834199991, guid: e9bfbb501ea981a4dbac54f6a62c8051, type: 3}
+      propertyPath: attackActionInfos.Array.data[0].normalizedBlendTime
+      value: 0.01
+      objectReference: {fileID: 0}
+    - target: {fileID: 45589522834199991, guid: e9bfbb501ea981a4dbac54f6a62c8051, type: 3}
+      propertyPath: attackActionInfos.Array.data[1].normalizedBlendTime
+      value: 0.01
+      objectReference: {fileID: 0}
+    - target: {fileID: 45589522834199991, guid: e9bfbb501ea981a4dbac54f6a62c8051, type: 3}
+      propertyPath: attackActionInfos.Array.data[2].normalizedBlendTime
+      value: 0.01
+      objectReference: {fileID: 0}
     - target: {fileID: 8628961304948358012, guid: e9bfbb501ea981a4dbac54f6a62c8051, type: 3}
       propertyPath: m_Name
       value: Y Bot
