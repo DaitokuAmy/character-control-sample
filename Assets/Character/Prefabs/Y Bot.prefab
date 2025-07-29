@@ -92,14 +92,17 @@ MonoBehaviour:
   lookTransform: {fileID: 0}
   jumpActionInfo:
     stateName: Jump
-    normalizedBlendTime: 0.1
+    normalizedBlendTime: 0.01
+  landingActionInfo:
+    stateName: Landing
+    normalizedBlendTime: 0.01
   attackActionInfos:
   - stateName: Attack_0
-    normalizedBlendTime: 0.1
+    normalizedBlendTime: 0.01
   - stateName: Attack_1
-    normalizedBlendTime: 0.1
+    normalizedBlendTime: 0.01
   - stateName: Attack_2
-    normalizedBlendTime: 0.1
+    normalizedBlendTime: 0.01
   _useRootLocomotion: 1
   _useSpeedScale: 1
   _rootPositionScale: {x: 1, y: 1, z: 1}

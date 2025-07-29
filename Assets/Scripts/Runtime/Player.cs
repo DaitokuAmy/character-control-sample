@@ -14,6 +14,7 @@ namespace CharacterControlSample {
         private static readonly int SpeedXPropId = Animator.StringToHash("speed.x");
         private static readonly int SpeedZPropId = Animator.StringToHash("speed.z");
         private static readonly int SpeedScalePropId = Animator.StringToHash("speed_scale");
+        private static readonly int IsAirPropId = Animator.StringToHash("is_air");
         private static readonly int InverseGravityScalePropId = Animator.StringToHash("inverse_gravity_scale");
         private static readonly int DisableActionPropId = Animator.StringToHash("disable_action");
 
@@ -50,6 +51,9 @@ namespace CharacterControlSample {
         [SerializeField, Tooltip("ジャンプアクション情報")]
         private ActionInfo jumpActionInfo;
 
+        [SerializeField, Tooltip("着地アクション情報")]
+        private ActionInfo landingActionInfo;
+
         [SerializeField, Tooltip("攻撃アクション情報リスト")]
         private ActionInfo[] attackActionInfos;
 
@@ -58,6 +62,21 @@ namespace CharacterControlSample {
 
         [SerializeField, Tooltip("速度スケールを用いて移動速度をルート移動モーションより増加させるか")]
         private bool _useSpeedScale = true;
+
+        [SerializeField, Tooltip("空中状態での移動速度にかけるスケール")]
+        private float _airMoveSpeedMultiplier = 0.5f;
+
+        [SerializeField, Tooltip("地面判定用のSphereCast半径")]
+        private float _groundCastRadius = 0.2f;
+
+        [SerializeField, Tooltip("地面判定用のSphereCast距離")]
+        private float _groundCastDistance = 0.5f;
+
+        [SerializeField, Tooltip("地面チェック用のレイヤーマスク")]
+        private LayerMask _groundCastLayerMask = -1;
+
+        [SerializeField, Tooltip("着地アクションを流す速度閾値")]
+        private float _landingSpeedThreshold = 2.0f;
 
         [Header("可視化用")]
         [SerializeField, Tooltip("ルート移動量スケール")]
@@ -73,10 +92,13 @@ namespace CharacterControlSample {
         [SerializeField, Tooltip("アクション実行不可能フラグ")]
         private bool _disableAction;
 
+        private readonly RaycastHit[] _raycastHits = new RaycastHit[8];
+
         private Animator _animator;
         private CharacterController _characterController;
         private Vector3 _velocity;
         private float _gravitySpeed;
+        private bool _air;
         private InputAction _moveAction;
         private InputAction _jumpAction;
         private InputAction _attackAction;
@@ -128,7 +150,10 @@ namespace CharacterControlSample {
 
             // 重力の更新
             UpdateGravity(deltaTime);
-            
+
+            // 空中状態の更新
+            UpdateAirStatus(deltaTime);
+
             // 自前移動
             if (!_useRootLocomotion) {
                 if (!IsActionState()) {
@@ -149,7 +174,7 @@ namespace CharacterControlSample {
             if (!_useRootLocomotion && !IsActionState()) {
                 positionScale = Vector3.zero;
             }
-            
+
             // ローカル移動量に変換
             var deltaPosition = _animator.deltaPosition;
             var localDeltaPosition = transform.InverseTransformDirection(deltaPosition);
@@ -192,6 +217,20 @@ namespace CharacterControlSample {
             // 攻撃の抽選
             var index = Random.Range(0, attackActionInfos.Length);
             var actionInfo = attackActionInfos[index];
+
+            // ステートに遷移
+            _animator.CrossFade(actionInfo.stateName, actionInfo.normalizedBlendTime);
+        }
+
+        /// <summary>
+        /// LandingAction発生時
+        /// </summary>
+        private void OnLandingAction() {
+            if (_disableAction) {
+                return;
+            }
+
+            var actionInfo = landingActionInfo;
 
             // ステートに遷移
             _animator.CrossFade(actionInfo.stateName, actionInfo.normalizedBlendTime);
@@ -242,13 +281,46 @@ namespace CharacterControlSample {
         }
 
         /// <summary>
+        /// 空中状態の更新
+        /// </summary>
+        private void UpdateAirStatus(float deltaTime) {
+            var checkRay = new Ray(transform.position, Vector3.down);
+            var hitCount = Physics.SphereCastNonAlloc(checkRay, _groundCastRadius, _raycastHits, _groundCastDistance, _groundCastLayerMask);
+
+            // 上方向を向いている板に衝突していたら空中ではないとみなす
+            var prevAir = _air;
+            _air = true;
+            for (var i = 0; i < hitCount; i++) {
+                var hit = _raycastHits[i];
+                if (Vector3.Dot(hit.normal, Vector3.up) <= Mathf.Cos(Mathf.Deg2Rad * 20.0f)) {
+                    continue;
+                }
+
+                _air = false;
+            }
+
+            // 空中状態は移動を反映させる
+            if (_air) {
+                Move(_velocity * (_airMoveSpeedMultiplier * deltaTime));
+            }
+
+            // 着地判定
+            if (prevAir && !_air) {
+                var velocityY = _characterController.velocity.y;
+                if (velocityY <= -_landingSpeedThreshold) {
+                    OnLandingAction();
+                }
+            }
+        }
+
+        /// <summary>
         /// Locomotion制御用のパラメータ更新
         /// </summary>
         private void UpdateAnimatorParameters(float deltaTime) {
             // 移動速度
             var speed = _velocity.magnitude;
             _animator.SetFloat(SpeedPropId, speed);
-            
+
             // 速度スケール
             var speedScale = _useSpeedScale ? Mathf.Max(1.0f, speed / maxRootSpeed) : 1.0f;
             _animator.SetFloat(SpeedScalePropId, speedScale);
@@ -257,6 +329,9 @@ namespace CharacterControlSample {
             var relativeVelocity = Quaternion.Euler(0, -transform.eulerAngles.y, 0) * _velocity;
             _animator.SetFloat(SpeedXPropId, relativeVelocity.x);
             _animator.SetFloat(SpeedZPropId, relativeVelocity.z);
+
+            // 空中状態の反映
+            _animator.SetBool(IsAirPropId, _air);
         }
 
         /// <summary>
