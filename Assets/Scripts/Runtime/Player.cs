@@ -1,14 +1,11 @@
 using System;
 using UnityEngine;
-using UnityEngine.InputSystem;
-using UnityEngine.Serialization;
-using Random = UnityEngine.Random;
 
 namespace CharacterControlSample {
     /// <summary>
     /// プレイヤー操作用クラス
     /// </summary>
-    public class Player : MonoBehaviour {
+    public partial class Player : MonoBehaviour {
         // Animatorパラメータ用のId
         private static readonly int SpeedPropId = Animator.StringToHash("speed");
         private static readonly int SpeedXPropId = Animator.StringToHash("speed.x");
@@ -30,20 +27,17 @@ namespace CharacterControlSample {
             public float normalizedBlendTime;
         }
 
-        [SerializeField, Tooltip("プレイヤー入力")]
-        private PlayerInput playerInput;
-
         [SerializeField, Tooltip("最大速度")]
         private float maxSpeed = 4.0f;
 
         [SerializeField, Tooltip("Root移動による最大速度")]
         private float maxRootSpeed = 4.0f;
 
-        [SerializeField, Tooltip("移動速度補間割合")]
-        private float speedInterpRate = 1.0f;
+        [SerializeField, Tooltip("加速度")]
+        private float acceleration = 1.0f;
 
-        [SerializeField, Tooltip("回転速度補間割合")]
-        private float rotationInterpRate = 1.0f;
+        [SerializeField, Tooltip("角加速度")]
+        private float angularAcceleration = 1.0f;
 
         [SerializeField, Tooltip("見ている方向に使うTransform")]
         private Transform lookTransform;
@@ -52,7 +46,7 @@ namespace CharacterControlSample {
         private ActionInfo jumpActionInfo;
 
         [SerializeField, Tooltip("着地アクション情報")]
-        private ActionInfo landingActionInfo;
+        private ActionInfo[] landingActionInfos;
 
         [SerializeField, Tooltip("攻撃アクション情報リスト")]
         private ActionInfo[] attackActionInfos;
@@ -82,7 +76,6 @@ namespace CharacterControlSample {
         [SerializeField, Tooltip("ルート移動量スケール")]
         private Vector3 _rootPositionScale = Vector3.one;
 
-        [FormerlySerializedAs("_rootRotationYScale")]
         [SerializeField, Tooltip("ルート回転量(Y)スケール")]
         private float rootRotationYYScale = 1.0f;
 
@@ -92,16 +85,17 @@ namespace CharacterControlSample {
         [SerializeField, Tooltip("アクション実行不可能フラグ")]
         private bool _disableAction;
 
+        [SerializeField, Tooltip("移動入力速度")]
+        private Vector3 _moveVelocity;
+
         private readonly RaycastHit[] _raycastHits = new RaycastHit[8];
 
         private Animator _animator;
         private CharacterController _characterController;
-        private Vector3 _velocity;
+        private Vector2 _inputDirection;
+        private Vector3? _targetLookDirection;
         private float _gravitySpeed;
         private bool _air;
-        private InputAction _moveAction;
-        private InputAction _jumpAction;
-        private InputAction _attackAction;
 
         /// <summary>重力スケール</summary>
         public float GravityScale {
@@ -121,26 +115,62 @@ namespace CharacterControlSample {
             set => rootRotationYYScale = value;
         }
 
+        /// <summary>移動入力中か</summary>
+        public bool IsInputMoving => _moveVelocity.sqrMagnitude > 0.01f;
+
+        /// <summary>
+        /// 移動値入力
+        /// </summary>
+        public void InputMoveDirection(Vector2 inputDirection) {
+            _inputDirection = inputDirection;
+
+            // 現在のステートに通知
+            _currentState?.InputMoveDirection(inputDirection);
+        }
+
+        /// <summary>
+        /// ジャンプ入力
+        /// </summary>
+        public void InputJump() {
+            if (_disableAction) {
+                return;
+            }
+
+            // 現在のステートに通知
+            _currentState?.InputJump();
+        }
+
+        /// <summary>
+        /// 攻撃入力
+        /// </summary>
+        public void InputAttack() {
+            if (_disableAction) {
+                return;
+            }
+
+            // 現在のステートに通知
+            _currentState?.InputAttack();
+        }
+
         private void Awake() {
             _animator = GetComponent<Animator>();
             _characterController = GetComponent<CharacterController>();
-            _moveAction = playerInput.actions["Move"];
-            _jumpAction = playerInput.actions["Jump"];
-            _attackAction = playerInput.actions["Attack"];
         }
 
         private void OnEnable() {
-            _jumpAction.performed += OnJumpAction;
-            _attackAction.performed += OnAttackAction;
+            _inputDirection = Vector2.zero;
+            SetupStates(StateType.Locomotion);
         }
 
         private void OnDisable() {
-            _jumpAction.performed -= OnJumpAction;
-            _attackAction.performed -= OnAttackAction;
+            CleanupStates();
         }
 
         private void Update() {
             var deltaTime = Time.deltaTime;
+
+            // ステートの更新
+            UpdateState(deltaTime);
 
             // 速度の更新
             UpdateVelocity(deltaTime);
@@ -154,13 +184,6 @@ namespace CharacterControlSample {
             // 空中状態の更新
             UpdateAirStatus(deltaTime);
 
-            // 自前移動
-            if (!_useRootLocomotion) {
-                if (!IsActionState()) {
-                    Move(_velocity * deltaTime);
-                }
-            }
-
             // アニメーターのパラメータに反映
             UpdateAnimatorParameters(deltaTime);
 
@@ -169,18 +192,12 @@ namespace CharacterControlSample {
         }
 
         private void OnAnimatorMove() {
-            // 自前移動する場合、Actionモーション以外は座標スケールを0にする
-            var positionScale = RootPositionScale;
-            if (!_useRootLocomotion && !IsActionState()) {
-                positionScale = Vector3.zero;
-            }
-
             // ローカル移動量に変換
             var deltaPosition = _animator.deltaPosition;
             var localDeltaPosition = transform.InverseTransformDirection(deltaPosition);
 
             // 軸スケールを考慮
-            localDeltaPosition = Vector3.Scale(localDeltaPosition, positionScale);
+            localDeltaPosition = Vector3.Scale(localDeltaPosition, RootPositionScale);
             deltaPosition = transform.TransformDirection(localDeltaPosition);
 
             // 回転はワールドで考慮
@@ -193,36 +210,6 @@ namespace CharacterControlSample {
         }
 
         /// <summary>
-        /// JumpAction発生時
-        /// </summary>
-        private void OnJumpAction(InputAction.CallbackContext context) {
-            if (_disableAction) {
-                return;
-            }
-
-            var actionInfo = jumpActionInfo;
-
-            // ステートに遷移
-            _animator.CrossFade(actionInfo.stateName, actionInfo.normalizedBlendTime);
-        }
-
-        /// <summary>
-        /// AttackAction発生時
-        /// </summary>
-        private void OnAttackAction(InputAction.CallbackContext context) {
-            if (_disableAction) {
-                return;
-            }
-
-            // 攻撃の抽選
-            var index = Random.Range(0, attackActionInfos.Length);
-            var actionInfo = attackActionInfos[index];
-
-            // ステートに遷移
-            _animator.CrossFade(actionInfo.stateName, actionInfo.normalizedBlendTime);
-        }
-
-        /// <summary>
         /// LandingAction発生時
         /// </summary>
         private void OnLandingAction() {
@@ -230,10 +217,8 @@ namespace CharacterControlSample {
                 return;
             }
 
-            var actionInfo = landingActionInfo;
-
-            // ステートに遷移
-            _animator.CrossFade(actionInfo.stateName, actionInfo.normalizedBlendTime);
+            _landingActionState.Setup(0);
+            ChangeState(StateType.LandingAction);
         }
 
         /// <summary>
@@ -241,27 +226,45 @@ namespace CharacterControlSample {
         /// </summary>
         private void UpdateVelocity(float deltaTime) {
             // 移動入力に合わせて速度を更新
-            var inputDirection = _moveAction.ReadValue<Vector2>();
-            var targetVelocity = Quaternion.Euler(0, lookTransform.eulerAngles.y, 0) * new Vector3(inputDirection.x, 0, inputDirection.y) * maxSpeed;
+            var targetVelocity = Quaternion.Euler(0, lookTransform.eulerAngles.y, 0) * new Vector3(_inputDirection.x, 0, _inputDirection.y) * maxSpeed;
 
             // 実際の速度は補間して更新
-            var t = 1.0f - Mathf.Exp(-speedInterpRate * deltaTime);
-            _velocity = Vector3.Lerp(_velocity, targetVelocity, t);
+            var delta = targetVelocity - _moveVelocity;
+            var deltaMagnitude = delta.magnitude;
+            if (deltaMagnitude <= acceleration * deltaTime) {
+                _moveVelocity = targetVelocity;
+            }
+            else {
+                _moveVelocity += delta * (acceleration * deltaTime / deltaMagnitude);
+            }
         }
 
         /// <summary>
         /// 向きの更新
         /// </summary>
         private void UpdateRotation(float deltaTime) {
-            // 移動速度があれば、カメラ方向に徐々に向きを直していく
-            if (_velocity.sqrMagnitude > 0.01f) {
-                var targetDir = lookTransform.forward;
+            // ターゲット向きがあればそこに向かって向きを合わせる
+            if (_targetLookDirection.HasValue) {
+                var targetDir = _targetLookDirection.Value;
                 targetDir.y = 0;
                 targetDir.Normalize();
-                var currentDir = transform.forward;
-                var t = 1.0f - Mathf.Exp(-rotationInterpRate * deltaTime);
-                currentDir = Vector3.Lerp(currentDir, targetDir, t);
-                transform.rotation = Quaternion.LookRotation(currentDir);
+                var targetAngleY = Mathf.Atan2(targetDir.x, targetDir.z) * Mathf.Rad2Deg;
+                var currentAngles = transform.eulerAngles;
+                var deltaAngle = Mathf.DeltaAngle(currentAngles.y, targetAngleY);
+                if (Mathf.Abs(deltaAngle) <= angularAcceleration * deltaTime) {
+                    currentAngles.y = targetAngleY;
+                    transform.eulerAngles = currentAngles;
+                }
+                else {
+                    if (deltaAngle >= 0.0f) {
+                        currentAngles.y += angularAcceleration * deltaTime;
+                    }
+                    else {
+                        currentAngles.y -= angularAcceleration * deltaTime;
+                    }
+
+                    transform.eulerAngles = currentAngles;
+                }
             }
         }
 
@@ -277,7 +280,7 @@ namespace CharacterControlSample {
 
             var gravity = Physics.gravity * GravityScale;
             _gravitySpeed += gravity.y * deltaTime;
-            Move(Vector3.up * _gravitySpeed * deltaTime);
+            Move(Vector3.up * (_gravitySpeed * deltaTime));
         }
 
         /// <summary>
@@ -299,11 +302,6 @@ namespace CharacterControlSample {
                 _air = false;
             }
 
-            // 空中状態は移動を反映させる
-            if (_air) {
-                Move(_velocity * (_airMoveSpeedMultiplier * deltaTime));
-            }
-
             // 着地判定
             if (prevAir && !_air) {
                 var velocityY = _characterController.velocity.y;
@@ -318,7 +316,7 @@ namespace CharacterControlSample {
         /// </summary>
         private void UpdateAnimatorParameters(float deltaTime) {
             // 移動速度
-            var speed = _velocity.magnitude;
+            var speed = _moveVelocity.magnitude;
             _animator.SetFloat(SpeedPropId, speed);
 
             // 速度スケール
@@ -326,7 +324,7 @@ namespace CharacterControlSample {
             _animator.SetFloat(SpeedScalePropId, speedScale);
 
             // 正面から見た相対速度
-            var relativeVelocity = Quaternion.Euler(0, -transform.eulerAngles.y, 0) * _velocity;
+            var relativeVelocity = Quaternion.Euler(0, -transform.eulerAngles.y, 0) * _moveVelocity;
             _animator.SetFloat(SpeedXPropId, relativeVelocity.x);
             _animator.SetFloat(SpeedZPropId, relativeVelocity.z);
 
@@ -355,14 +353,6 @@ namespace CharacterControlSample {
         private void SetPosition(Vector3 newPosition) {
             var deltaPosition = newPosition - transform.position;
             Move(deltaPosition);
-        }
-
-        /// <summary>
-        /// アクションステートにいるか
-        /// </summary>
-        private bool IsActionState() {
-            return _animator.GetCurrentAnimatorStateInfo(0).IsTag("Action") ||
-                   _animator.GetNextAnimatorStateInfo(0).IsTag("Action");
         }
     }
 }

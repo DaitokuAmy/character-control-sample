@@ -154,17 +154,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ad71d0c743b99b542822048738c81e6d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  playerInput: {fileID: 0}
-  maxSpeed: 6
+  maxSpeed: 5
   maxRootSpeed: 3.46493
-  speedInterpRate: 8
-  rotationInterpRate: 5
+  acceleration: 30
+  angularAcceleration: 360
   lookTransform: {fileID: 0}
   jumpActionInfo:
     stateName: Jump
     normalizedBlendTime: 0.01
-  landingActionInfo:
-    stateName: Landing
+  landingActionInfos:
+  - stateName: Landing_0
     normalizedBlendTime: 0.01
   attackActionInfos:
   - stateName: Attack_0
@@ -186,6 +185,7 @@ MonoBehaviour:
   rootRotationYYScale: 1
   _gravityScale: 1
   _disableAction: 0
+  _moveVelocity: {x: 0, y: 0, z: 0}
 --- !u!143 &1292980762056278671
 CharacterController:
   m_ObjectHideFlags: 0
@@ -210,4 +210,4 @@ CharacterController:
   m_StepOffset: 0.3
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0.001
-  m_Center: {x: 0, y: 1, z: 0}
+  m_Center: {x: 0, y: 1.08, z: 0}

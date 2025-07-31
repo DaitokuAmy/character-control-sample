@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 8b2b4495a1b3c3247ab2379216588c22
+guid: 5474a1fd6eb4d5a40b6ce5be2876a7f8
 ModelImporter:
   serializedVersion: 22200
   internalIDToNameTable: []
@@ -31,11 +31,11 @@ ModelImporter:
     extraUserProperties: []
     clipAnimations:
     - serializedVersion: 16
-      name: flying kick
+      name: sword and shield jump
       takeName: mixamo.com
       internalID: -203655887218126122
       firstFrame: 0
-      lastFrame: 45
+      lastFrame: 25
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -45,7 +45,7 @@ ModelImporter:
       loopTime: 0
       loopBlend: 0
       loopBlendOrientation: 1
-      loopBlendPositionY: 1
+      loopBlendPositionY: 0
       loopBlendPositionXZ: 0
       keepOriginalOrientation: 1
       keepOriginalPositionY: 1
@@ -54,7 +54,7 @@ ModelImporter:
       mirror: 0
       bodyMask: 01000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000
       curves:
-      - name: disable_action
+      - name: inverse_gravity_scale
         curve:
           serializedVersion: 2
           curve:
@@ -68,7 +68,7 @@ ModelImporter:
             inWeight: 0
             outWeight: 0
           - serializedVersion: 3
-            time: 0.6324324
+            time: 0.8756757
             value: 0
             inSlope: Infinity
             outSlope: 0
